@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+  <meta name="referrer" content="no-referrer">
+  <title>AI Legal Intake System — Skills Assessment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #111827;
+      --bg-card: #1a2236;
+      --bg-code: #0d1321;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+      --accent-green: #10b981;
+      --accent-orange: #f59e0b;
+      --accent-red: #ef4444;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border: #1e293b;
+      --border-accent: rgba(59, 130, 246, 0.3);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 3px; }
+
+    /* Navigation */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(10, 14, 23, 0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav__logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem; font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+    .nav__links { display: flex; gap: 2rem; }
+    .nav__link {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; text-decoration: none;
+      color: var(--text-secondary);
+      letter-spacing: 1px; text-transform: uppercase;
+      transition: color 0.3s;
+    }
+    .nav__link:hover { color: var(--accent); }
+    .nav__status {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem; color: var(--accent-green);
+    }
+    .nav__dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 6rem 2rem 4rem;
+      position: relative;
+      background: radial-gradient(ellipse at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Cpath d='M0 40V0h1v40zm40 0V0h1v40zM0 0h40v1H0zm0 40h40v1H0z' fill='rgba(59,130,246,0.04)'/%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+    .hero__badge {
+      display: inline-block; padding: 0.4rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem; letter-spacing: 2px;
+      color: var(--accent); border: 1px solid var(--border-accent);
+      border-radius: 100px; margin-bottom: 2rem;
+      background: rgba(59, 130, 246, 0.05);
+    }
+    .hero__title {
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 700; line-height: 1.15;
+      background: linear-gradient(135deg, #e2e8f0 0%, #3b82f6 50%, #10b981 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 1.5rem;
+    }
+    .hero__subtitle {
+      font-size: 1.15rem; color: var(--text-secondary);
+      max-width: 650px; margin: 0 auto 2rem;
+    }
+    .hero__meta {
+      display: flex; align-items: center; justify-content: center; gap: 2rem;
+      flex-wrap: wrap; margin-bottom: 2.5rem;
+    }
+    .hero__meta-item {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.85rem; color: var(--text-muted);
+    }
+    .hero__meta-item svg { width: 16px; height: 16px; stroke: var(--accent); }
+    .hero__actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.5rem; border-radius: 8px;
+      font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 500;
+      text-decoration: none; transition: all 0.3s; cursor: pointer; border: none;
+    }
+    .btn--primary {
+      background: var(--accent); color: #fff;
+      box-shadow: 0 4px 15px var(--accent-glow);
+    }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); }
+    .btn--outline {
+      background: transparent; color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .btn--outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn svg { width: 16px; height: 16px; }
+
+    /* Sections */
+    .section { padding: 5rem 2rem; max-width: 1200px; margin: 0 auto; }
+    .section__header { margin-bottom: 3rem; }
+    .section__tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: var(--accent);
+      letter-spacing: 2px; display: block; margin-bottom: 0.75rem;
+    }
+    .section__title {
+      font-size: clamp(1.8rem, 3vw, 2.5rem);
+      font-weight: 700; margin-bottom: 0.75rem;
+    }
+    .section__desc {
+      font-size: 1rem; color: var(--text-secondary);
+      max-width: 700px;
+    }
+
+    /* Approach comparison */
+    .approach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem; }
+    .approach-card {
+      padding: 2rem; border-radius: 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      transition: border-color 0.3s;
+    }
+    .approach-card:hover { border-color: var(--accent); }
+    .approach-card__label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem; letter-spacing: 2px;
+      color: var(--accent); margin-bottom: 0.75rem;
+    }
+    .approach-card__title { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.75rem; }
+    .approach-card__desc { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1.25rem; }
+    .approach-card__tech { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem; padding: 0.25rem 0.6rem;
+      border-radius: 4px; letter-spacing: 0.5px;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.15);
+    }
+    .tag--green { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.15); }
+    .tag--orange { background: rgba(245, 158, 11, 0.1); color: var(--accent-orange); border-color: rgba(245, 158, 11, 0.15); }
+
+    /* Video Section */
+    .video-section {
+      padding: 4rem 2rem; max-width: 900px; margin: 0 auto; text-align: center;
+    }
+    .video-wrapper {
+      position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;
+      border-radius: 12px; border: 1px solid var(--border);
+      background: var(--bg-card); margin-top: 2rem;
+    }
+    .video-wrapper iframe {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      border: none; border-radius: 12px;
+    }
+    .video-placeholder {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1rem;
+      color: var(--text-muted);
+    }
+    .video-placeholder svg { width: 48px; height: 48px; opacity: 0.5; }
+    .video-placeholder span { font-size: 0.9rem; }
+
+    /* Diagram gallery */
+    .diagram-grid { display: grid; gap: 2rem; margin-top: 2rem; }
+    .diagram-card {
+      border-radius: 12px; overflow: hidden;
+      background: var(--bg-card); border: 1px solid var(--border);
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    .diagram-card:hover { border-color: var(--accent); transform: translateY(-4px); }
+    .diagram-card__header {
+      padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .diagram-card__number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; font-weight: 600;
+      width: 28px; height: 28px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(59, 130, 246, 0.15); color: var(--accent);
+    }
+    .diagram-card__title { font-size: 1rem; font-weight: 600; }
+    .diagram-card__desc { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
+    .diagram-card__img {
+      width: 100%; display: block; padding: 1.5rem;
+      background: #fff; cursor: pointer;
+    }
+    .diagram-card__img img { width: 100%; height: auto; display: block; }
+
+    /* Code block */
+    .code-section { margin-top: 2rem; }
+    .code-block {
+      border-radius: 12px; overflow: hidden;
+      background: var(--bg-code); border: 1px solid var(--border);
+    }
+    .code-block__header {
+      padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 0.75rem;
+      background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border);
+    }
+    .code-block__dots { display: flex; gap: 6px; }
+    .code-block__dot { width: 10px; height: 10px; border-radius: 50%; }
+    .code-block__dot--red { background: #ef4444; }
+    .code-block__dot--yellow { background: #f59e0b; }
+    .code-block__dot--green { background: #10b981; }
+    .code-block__file {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: var(--text-muted);
+    }
+    .code-block__body {
+      padding: 1.25rem 1.5rem; overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem; line-height: 1.8;
+      color: var(--text-secondary);
+    }
+    .code-block__body .kw { color: #c084fc; }
+    .code-block__body .fn { color: #60a5fa; }
+    .code-block__body .str { color: #34d399; }
+    .code-block__body .cm { color: #4b5563; font-style: italic; }
+    .code-block__body .op { color: #f472b6; }
+    .code-block__body .bool { color: #f59e0b; }
+    .code-block__body .num { color: #f59e0b; }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem; margin-top: 2rem;
+    }
+    .stat-card {
+      padding: 1.5rem; border-radius: 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      text-align: center;
+    }
+    .stat-card__value {
+      font-size: 2rem; font-weight: 700; color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-card__label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+    /* Pipeline steps */
+    .pipeline { margin-top: 2rem; }
+    .pipeline__step {
+      display: flex; gap: 1.5rem; padding: 1.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .pipeline__step:last-child { border-bottom: none; }
+    .pipeline__num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.2rem; font-weight: 700; color: var(--accent);
+      flex-shrink: 0; width: 40px; text-align: center;
+      padding-top: 0.15rem;
+    }
+    .pipeline__content { flex: 1; }
+    .pipeline__title { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .pipeline__desc { font-size: 0.9rem; color: var(--text-secondary); }
+
+    /* Resource links */
+    .resources-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem; margin-top: 2rem;
+    }
+    .resource-card {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1.25rem 1.5rem; border-radius: 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      text-decoration: none; color: var(--text-primary);
+      transition: all 0.3s;
+    }
+    .resource-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .resource-card__icon {
+      width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .resource-card__icon svg { width: 22px; height: 22px; stroke: var(--accent); }
+    .resource-card__icon--green { background: rgba(16, 185, 129, 0.1); }
+    .resource-card__icon--green svg { stroke: var(--accent-green); }
+    .resource-card__icon--orange { background: rgba(245, 158, 11, 0.1); }
+    .resource-card__icon--orange svg { stroke: var(--accent-orange); }
+    .resource-card__text { flex: 1; }
+    .resource-card__title { font-size: 0.95rem; font-weight: 600; }
+    .resource-card__desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem; }
+    .resource-card__arrow { color: var(--text-muted); font-size: 1.2rem; }
+
+    /* Lightbox */
+    .lightbox {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.92); backdrop-filter: blur(10px);
+      align-items: center; justify-content: center;
+      padding: 2rem; cursor: zoom-out;
+    }
+    .lightbox.active { display: flex; }
+    .lightbox img { max-width: 95%; max-height: 90vh; border-radius: 12px; }
+    .lightbox__close {
+      position: absolute; top: 1.5rem; right: 1.5rem;
+      background: rgba(255,255,255,0.1); border: none; color: #fff;
+      width: 40px; height: 40px; border-radius: 50%;
+      font-size: 1.5rem; cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+    }
+
+    /* Table */
+    .comparison-table { width: 100%; margin-top: 2rem; border-collapse: collapse; }
+    .comparison-table th, .comparison-table td {
+      padding: 0.75rem 1rem; text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .comparison-table th {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem; letter-spacing: 1px;
+      color: var(--text-muted); text-transform: uppercase;
+    }
+    .comparison-table td { color: var(--text-secondary); }
+    .comparison-table tr:hover td { color: var(--text-primary); }
+
+    /* Footer */
+    .footer {
+      padding: 3rem 2rem; text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    .footer__text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem; color: var(--text-muted);
+    }
+
+    /* Divider */
+    .divider {
+      max-width: 1200px; margin: 0 auto;
+      height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .nav__links { display: none; }
+      .approach-grid { grid-template-columns: 1fr; }
+      .hero__meta { flex-direction: column; gap: 0.75rem; }
+      .pipeline__step { flex-direction: column; gap: 0.75rem; }
+      .pipeline__num { width: auto; text-align: left; }
+    }
+
+    /* Scroll animations */
+    .reveal {
+      opacity: 0; transform: translateY(30px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav__logo">[ AI LEGAL INTAKE ]</div>
+    <div class="nav__links">
+      <a href="#overview" class="nav__link">OVERVIEW</a>
+      <a href="#architecture" class="nav__link">ARCHITECTURE</a>
+      <a href="#pipeline" class="nav__link">PIPELINE</a>
+      <a href="#code" class="nav__link">CODE</a>
+      <a href="#diagrams" class="nav__link">DIAGRAMS</a>
+      <a href="#resources" class="nav__link">RESOURCES</a>
+    </div>
+    <div class="nav__status">
+      <div class="nav__dot"></div>
+      <span>LIVE DEMO</span>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero" id="hero">
+    <div style="position: relative; z-index: 1;">
+      <div class="hero__badge">SKILLS ASSESSMENT // MARCH 2026</div>
+      <h1 class="hero__title">AI-Powered Legal<br>Intake System</h1>
+      <p class="hero__subtitle">
+        End-to-end Voice AI phone intake with intelligent qualification,
+        automated CRM routing, and multi-channel notifications — built for law firm marketing at scale.
+      </p>
+      <div class="hero__meta">
+        <div class="hero__meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>Ritche Yves Loteria</span>
+        </div>
+        <div class="hero__meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>March 2026</span>
+        </div>
+        <div class="hero__meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <span>AI & Automations Integration Specialist</span>
+        </div>
+      </div>
+      <div class="hero__actions">
+        <a href="#walkthrough" class="btn btn--primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Watch Walkthrough
+        </a>
+        <a href="https://github.com/ryc18/ai-legal-intake" target="_blank" class="btn btn--outline">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+          View Source Code
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Video Walkthrough -->
+  <section class="video-section" id="walkthrough">
+    <div class="section__header" style="text-align: center;">
+      <span class="section__tag" style="text-align: center;">// VIDEO WALKTHROUGH</span>
+      <h2 class="section__title">5-Minute System Walkthrough</h2>
+      <p class="section__desc" style="margin: 0.5rem auto 0;">Architecture decisions, live demo, and scaling strategy</p>
+    </div>
+    <div class="video-wrapper">
+      <!-- REPLACE: Paste your Loom embed URL below -->
+      <!-- <iframe src="https://www.loom.com/embed/YOUR_VIDEO_ID" allowfullscreen></iframe> -->
+      <div class="video-placeholder" id="video-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span>Loom video will be embedded here</span>
+        <span style="font-size: 0.75rem; opacity: 0.6;">Record your walkthrough, then replace this placeholder with the embed URL</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Overview -->
+  <section class="section" id="overview">
+    <div class="section__header reveal">
+      <span class="section__tag">// SYSTEM OVERVIEW</span>
+      <h2 class="section__title">Two Approaches, One Architecture</h2>
+      <p class="section__desc">
+        Designed for Lion Head's law firm clients — the system logic stays the same
+        whether you're using visual workflows or production code. Swap the tools, keep the brain.
+      </p>
+    </div>
+
+    <div class="approach-grid">
+      <div class="approach-card reveal">
+        <div class="approach-card__label">APPROACH 1</div>
+        <div class="approach-card__title">n8n Visual Workflow</div>
+        <p class="approach-card__desc">
+          Self-hosted automation orchestrator with visual node editor.
+          Fast to build, easy handoff to non-devs. Best for most law firm clients.
+        </p>
+        <div class="approach-card__tech">
+          <span class="tag">n8n</span>
+          <span class="tag tag--green">Google Sheets</span>
+          <span class="tag tag--green">Gmail</span>
+          <span class="tag tag--green">Google Calendar</span>
+          <span class="tag">OpenAI GPT-4o</span>
+        </div>
+      </div>
+      <div class="approach-card reveal">
+        <div class="approach-card__label">APPROACH 2</div>
+        <div class="approach-card__title">Coded Solution</div>
+        <p class="approach-card__desc">
+          Full-control webhook server deployed on Vercel. Same logic as code —
+          Node.js and Python implementations. Best when teams need custom logic or testing.
+        </p>
+        <div class="approach-card__tech">
+          <span class="tag">Node.js / Express</span>
+          <span class="tag">Python / FastAPI</span>
+          <span class="tag tag--orange">Vercel</span>
+          <span class="tag tag--orange">GitHub</span>
+          <span class="tag">OpenAI API</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats-grid" style="margin-top: 2.5rem;">
+      <div class="stat-card reveal">
+        <div class="stat-card__value">4</div>
+        <div class="stat-card__label">Dedup Layers</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-card__value">2</div>
+        <div class="stat-card__label">Qualification Layers</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-card__value">3x</div>
+        <div class="stat-card__label">Retry with Backoff</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="stat-card__value">&lt;30s</div>
+        <div class="stat-card__label">End-to-End Processing</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Production Stack Note -->
+  <section class="section" id="architecture" style="padding-bottom: 3rem;">
+    <div class="section__header reveal">
+      <span class="section__tag">// IDEAL PRODUCTION STACK</span>
+      <h2 class="section__title">Built for Demo, Designed for Production</h2>
+      <p class="section__desc">
+        This assessment uses Google Workspace to demonstrate the logic.
+        In production, the architecture plugs directly into the ideal stack:
+      </p>
+    </div>
+    <table class="comparison-table reveal">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Assessment (Demo)</th>
+          <th>Production (Ideal)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>CRM</td><td>Google Sheets</td><td>GoHighLevel</td></tr>
+        <tr><td>Voice AI</td><td>Bland.ai (webhook)</td><td>Vapi.ai / Bland.ai</td></tr>
+        <tr><td>Notifications</td><td>Gmail</td><td>Slack + Twilio SMS</td></tr>
+        <tr><td>Scheduling</td><td>Google Calendar</td><td>GHL Calendar / Calendly</td></tr>
+        <tr><td>Database</td><td>Google Sheets</td><td>PostgreSQL + Airtable</td></tr>
+        <tr><td>Orchestrator</td><td>n8n (self-hosted)</td><td>n8n (self-hosted)</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Pipeline -->
+  <section class="section" id="pipeline">
+    <div class="section__header reveal">
+      <span class="section__tag">// PROCESSING PIPELINE</span>
+      <h2 class="section__title">7-Step Intake Pipeline</h2>
+      <p class="section__desc">
+        From inbound call to qualified lead notification in under 30 seconds
+      </p>
+    </div>
+    <div class="pipeline">
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">01</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">Validate Payload</div>
+          <div class="pipeline__desc">Check that name, phone, and case type are present. Missing data gets logged to Error Log and admin is alerted.</div>
+        </div>
+      </div>
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">02</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">Dedup Check (4 Layers)</div>
+          <div class="pipeline__desc">Call ID match, phone + 24hr window, webhook dedup, and Sheets safety net. Duplicates update existing records.</div>
+        </div>
+      </div>
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">03</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">AI Enrichment</div>
+          <div class="pipeline__desc">OpenAI GPT-4o with function calling extracts structured data. Enum fields enforce consistency, required fields guarantee minimum data.</div>
+        </div>
+      </div>
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">04</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">Two-Layer Qualification</div>
+          <div class="pipeline__desc">Layer 1: Deterministic rules for obvious cases (hard qualifiers/disqualifiers). Layer 2: AI judgment for gray areas. Always errs on the side of qualifying.</div>
+        </div>
+      </div>
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">05</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">Store Lead Data</div>
+          <div class="pipeline__desc">Parallel writes to CRM (Leads sheet) and audit trail (Lead Log sheet). Exponential backoff retry: 5s, 30s, 2min.</div>
+        </div>
+      </div>
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">06</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">Route Notifications</div>
+          <div class="pipeline__desc">Qualified: email intake team + calendar event. Not qualified: polite decline with State Bar referral. Urgent cases get fast-tracked.</div>
+        </div>
+      </div>
+      <div class="pipeline__step reveal">
+        <div class="pipeline__num">07</div>
+        <div class="pipeline__content">
+          <div class="pipeline__title">Clean Up & Log</div>
+          <div class="pipeline__desc">Update Dedup Tracker, mark Lead Log as complete. All operations logged for full audit trail.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Code -->
+  <section class="section" id="code">
+    <div class="section__header reveal">
+      <span class="section__tag">// QUALIFICATION ENGINE</span>
+      <h2 class="section__title">Core Logic</h2>
+      <p class="section__desc">
+        Two-layer qualification: deterministic rules that can't hallucinate,
+        plus AI judgment for nuanced cases
+      </p>
+    </div>
+
+    <div class="code-section reveal">
+      <div class="code-block">
+        <div class="code-block__header">
+          <div class="code-block__dots">
+            <div class="code-block__dot code-block__dot--red"></div>
+            <div class="code-block__dot code-block__dot--yellow"></div>
+            <div class="code-block__dot code-block__dot--green"></div>
+          </div>
+          <div class="code-block__file">qualification-logic.js</div>
+        </div>
+        <div class="code-block__body">
+<span class="kw">function</span> <span class="fn">qualifyLead</span>(data) {
+  <span class="cm">// HARD DISQUALIFIERS — override AI, no exceptions</span>
+  <span class="kw">if</span> (!FIRM_CONFIG.practiceAreas.<span class="fn">includes</span>(data.case_type))
+    <span class="kw">return</span> { qualified: <span class="bool">false</span>, reason: <span class="str">'Outside practice areas'</span> };
+
+  <span class="kw">if</span> (data.existing_representation <span class="op">===</span> <span class="bool">true</span>)
+    <span class="kw">return</span> { qualified: <span class="bool">false</span>, reason: <span class="str">'Already represented'</span> };
+
+  <span class="cm">// HARD QUALIFIERS — catch leads the AI might undervalue</span>
+  <span class="kw">if</span> (data.urgency <span class="op">===</span> <span class="str">'high'</span>)
+    <span class="kw">return</span> { qualified: <span class="bool">true</span>, reason: <span class="str">'Urgent case in practice area'</span> };
+
+  <span class="kw">if</span> (data.case_type <span class="op">===</span> <span class="str">'personal_injury'</span> <span class="op">&amp;&amp;</span> data.injuries)
+    <span class="kw">return</span> { qualified: <span class="bool">true</span>, reason: <span class="str">'PI with reported injuries'</span> };
+
+  <span class="cm">// DEFAULT: Trust AI's judgment for gray areas</span>
+  <span class="kw">return</span> { qualified: data.qualified, reason: data.qualification_reason };
+}
+        </div>
+      </div>
+    </div>
+
+    <div class="code-section reveal" style="margin-top: 2rem;">
+      <div class="code-block">
+        <div class="code-block__header">
+          <div class="code-block__dots">
+            <div class="code-block__dot code-block__dot--red"></div>
+            <div class="code-block__dot code-block__dot--yellow"></div>
+            <div class="code-block__dot code-block__dot--green"></div>
+          </div>
+          <div class="code-block__file">ai-intake-prompt.json — OpenAI Function Calling</div>
+        </div>
+        <div class="code-block__body">
+{
+  <span class="str">"name"</span>: <span class="str">"collectLeadInfo"</span>,
+  <span class="str">"parameters"</span>: {
+    <span class="str">"properties"</span>: {
+      <span class="str">"case_type"</span>: {
+        <span class="str">"enum"</span>: [<span class="str">"personal_injury"</span>, <span class="str">"family_law"</span>,
+                <span class="str">"criminal_defense"</span>, <span class="str">"employment_law"</span>, <span class="str">"other"</span>]
+      },
+      <span class="str">"urgency"</span>:  { <span class="str">"enum"</span>: [<span class="str">"high"</span>, <span class="str">"medium"</span>, <span class="str">"low"</span>] },
+      <span class="str">"injuries"</span>: { <span class="str">"type"</span>: <span class="str">"boolean"</span> },
+      <span class="str">"qualified"</span>: { <span class="str">"type"</span>: <span class="str">"boolean"</span> }
+    },
+    <span class="str">"required"</span>: [<span class="str">"caller_name"</span>, <span class="str">"phone"</span>, <span class="str">"case_type"</span>,
+                 <span class="str">"urgency"</span>, <span class="str">"qualified"</span>]
+  }
+}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Diagrams -->
+  <section class="section" id="diagrams">
+    <div class="section__header reveal">
+      <span class="section__tag">// ARCHITECTURE DIAGRAMS</span>
+      <h2 class="section__title">System Diagrams</h2>
+      <p class="section__desc">Click any diagram to view full size</p>
+    </div>
+
+    <div class="diagram-grid">
+      <div class="diagram-card reveal">
+        <div class="diagram-card__header">
+          <div class="diagram-card__number">1</div>
+          <div class="diagram-card__title">High-Level System Architecture</div>
+          <div class="diagram-card__desc">All components and data flows</div>
+        </div>
+        <div class="diagram-card__img" onclick="openLightbox(this)">
+          <img src="images/diagram1-architecture.png" alt="System Architecture Diagram" loading="lazy">
+        </div>
+      </div>
+
+      <div class="diagram-card reveal">
+        <div class="diagram-card__header">
+          <div class="diagram-card__number">2</div>
+          <div class="diagram-card__title">Call Flow Sequence</div>
+          <div class="diagram-card__desc">End-to-end call processing</div>
+        </div>
+        <div class="diagram-card__img" onclick="openLightbox(this)">
+          <img src="images/diagram2-call-flow.png" alt="Call Flow Sequence Diagram" loading="lazy">
+        </div>
+      </div>
+
+      <div class="diagram-card reveal">
+        <div class="diagram-card__header">
+          <div class="diagram-card__number">3</div>
+          <div class="diagram-card__title">Error Handling &amp; Retry Flow</div>
+          <div class="diagram-card__desc">Exponential backoff + recovery</div>
+        </div>
+        <div class="diagram-card__img" onclick="openLightbox(this)">
+          <img src="images/diagram3-error-handling.png" alt="Error Handling Flow Diagram" loading="lazy">
+        </div>
+      </div>
+
+      <div class="diagram-card reveal">
+        <div class="diagram-card__header">
+          <div class="diagram-card__number">4</div>
+          <div class="diagram-card__title">n8n Workflow Overview</div>
+          <div class="diagram-card__desc">Visual workflow node map</div>
+        </div>
+        <div class="diagram-card__img" onclick="openLightbox(this)">
+          <img src="images/diagram4-n8n-workflow.png" alt="n8n Workflow Overview Diagram" loading="lazy">
+        </div>
+      </div>
+
+      <div class="diagram-card reveal">
+        <div class="diagram-card__header">
+          <div class="diagram-card__number">5</div>
+          <div class="diagram-card__title">Scaling Architecture (10x Volume)</div>
+          <div class="diagram-card__desc">Redis queue + worker cluster</div>
+        </div>
+        <div class="diagram-card__img" onclick="openLightbox(this)">
+          <img src="images/diagram5-scaling.png" alt="Scaling Architecture Diagram" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- Resources -->
+  <section class="section" id="resources">
+    <div class="section__header reveal">
+      <span class="section__tag">// DELIVERABLES</span>
+      <h2 class="section__title">Resources &amp; Links</h2>
+      <p class="section__desc">All project deliverables and live resources</p>
+    </div>
+
+    <div class="resources-grid">
+      <a href="https://github.com/ryc18/ai-legal-intake" target="_blank" class="resource-card reveal">
+        <div class="resource-card__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+        </div>
+        <div class="resource-card__text">
+          <div class="resource-card__title">GitHub Repository</div>
+          <div class="resource-card__desc">Full source code — Node.js, Python, n8n workflow, AI prompts</div>
+        </div>
+        <div class="resource-card__arrow">&rarr;</div>
+      </a>
+
+      <a href="https://ai-legal-intake.vercel.app/api/webhook" target="_blank" class="resource-card reveal">
+        <div class="resource-card__icon resource-card__icon--orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="resource-card__text">
+          <div class="resource-card__title">Live API Endpoint</div>
+          <div class="resource-card__desc">Vercel serverless function — POST /api/webhook</div>
+        </div>
+        <div class="resource-card__arrow">&rarr;</div>
+      </a>
+
+      <a href="https://docs.google.com/spreadsheets/d/17ygxZ5WYxxQMmh5SdnWqRwHaIaJbRWbmNyCfOGVQqhE" target="_blank" class="resource-card reveal">
+        <div class="resource-card__icon resource-card__icon--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </div>
+        <div class="resource-card__text">
+          <div class="resource-card__title">Google Sheets CRM Template</div>
+          <div class="resource-card__desc">4 sheets — Leads, Lead Log, Dedup Tracker, Error Log</div>
+        </div>
+        <div class="resource-card__arrow">&rarr;</div>
+      </a>
+
+      <a href="#" class="resource-card reveal" id="pdf-download" style="opacity: 0.5; pointer-events: none;">
+        <div class="resource-card__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+        </div>
+        <div class="resource-card__text">
+          <div class="resource-card__title">PDF Assessment Document</div>
+          <div class="resource-card__desc">Complete write-up with diagrams and code — coming soon</div>
+        </div>
+        <div class="resource-card__arrow">&rarr;</div>
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p class="footer__text">AI Legal Intake System &mdash; Skills Assessment &copy; 2026 Ritche Yves Loteria</p>
+  </footer>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox__close">&times;</button>
+    <img id="lightbox-img" src="" alt="Diagram full view">
+  </div>
+
+  <script>
+    // Lightbox
+    function openLightbox(el) {
+      const img = el.querySelector('img');
+      document.getElementById('lightbox-img').src = img.src;
+      document.getElementById('lightbox').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+    // Scroll reveal
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Active nav link
+    const sections = document.querySelectorAll('.section, .video-section');
+    const navLinks = document.querySelectorAll('.nav__link');
+    window.addEventListener('scroll', () => {
+      let current = '';
+      sections.forEach(s => {
+        if (window.scrollY >= s.offsetTop - 200) current = s.id;
+      });
+      navLinks.forEach(link => {
+        link.style.color = link.getAttribute('href') === '#' + current ? '#3b82f6' : '';
+      });
+    });
+  </script>
+</body>
+</html>
