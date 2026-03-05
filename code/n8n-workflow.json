@@ -1,0 +1,542 @@
+{
+  "name": "AI Legal Intake — Voice AI to Google Workspace",
+  "nodes": [
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook: Receive Call Data",
+      "type": "n8n-nodes-base.webhook",
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "legal-intake",
+        "authentication": "headerAuth",
+        "options": {
+          "responseMode": "onReceived",
+          "responseCode": 200
+        }
+      },
+      "typeVersion": 1,
+      "notes": "Receives structured call data from Bland.ai (or any Voice AI provider). Authenticated via shared secret header."
+    },
+    {
+      "id": "validate-payload",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.function",
+      "position": [450, 300],
+      "parameters": {
+        "functionCode": "const data = $input.first().json;\n\n// Check required fields\nconst required = ['caller_name', 'phone', 'case_type'];\nconst missing = required.filter(f => !data[f]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required fields: ${missing.join(', ')}`);\n}\n\n// Normalize phone number\nlet phone = (data.phone || '').replace(/[^\\d+]/g, '');\nif (!phone.startsWith('+')) phone = '+1' + phone;\n\nreturn [{\n  json: {\n    call_id: data.call_id || `manual_${Date.now()}`,\n    caller_name: (data.caller_name || '').trim(),\n    phone: phone,\n    email: (data.email || '').trim().toLowerCase(),\n    case_type: data.case_type,\n    case_description: (data.case_description || '').trim(),\n    urgency: data.urgency || 'low',\n    jurisdiction: (data.jurisdiction || '').trim(),\n    injuries: data.injuries || false,\n    court_date: data.court_date || null,\n    existing_representation: data.existing_representation || false,\n    qualified: data.qualified,\n    qualification_reason: data.qualification_reason || '',\n    transcript: data.transcript || '',\n    duration_seconds: data.duration_seconds || 0,\n    additional_notes: data.additional_notes || '',\n    processed_at: new Date().toISOString()\n  }\n}];"
+      },
+      "typeVersion": 1,
+      "notes": "Validates required fields and normalizes data (phone format, trimming, defaults)."
+    },
+    {
+      "id": "read-dedup-sheet",
+      "name": "Read Dedup Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [650, 300],
+      "parameters": {
+        "operation": "read",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Dedup Tracker",
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4,
+      "notes": "Reads the Dedup Tracker sheet to check for duplicate call_ids or recent phone matches."
+    },
+    {
+      "id": "dedup-check",
+      "name": "Check for Duplicates",
+      "type": "n8n-nodes-base.function",
+      "position": [850, 300],
+      "parameters": {
+        "functionCode": "const lead = $node['Validate Payload'].first().json;\nconst dedupEntries = $node['Read Dedup Tracker'].all();\n\n// Check for exact call_id match\nconst callIdMatch = dedupEntries.find(e => e.json.call_id === lead.call_id);\nif (callIdMatch) {\n  return [{ json: { ...lead, action: 'skip', skip_reason: 'Duplicate call_id' } }];\n}\n\n// Check for same phone within 24 hours\nconst now = Date.now();\nconst windowMs = 24 * 60 * 60 * 1000;\nconst phoneMatch = dedupEntries.find(e => {\n  return e.json.phone === lead.phone &&\n    (now - new Date(e.json.timestamp).getTime()) < windowMs;\n});\n\nif (phoneMatch) {\n  return [{ json: { ...lead, action: 'update', skip_reason: 'Recent call from same number' } }];\n}\n\nreturn [{ json: { ...lead, action: 'create' } }];"
+      },
+      "typeVersion": 1,
+      "notes": "Two-layer dedup: 1) Exact call_id match, 2) Same phone within 24hr window."
+    },
+    {
+      "id": "is-new-lead",
+      "name": "New Lead?",
+      "type": "n8n-nodes-base.if",
+      "position": [1050, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equals",
+              "value2": "create"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "notes": "Routes new leads to processing, duplicates to the update/skip path."
+    },
+    {
+      "id": "log-duplicate",
+      "name": "Log Duplicate to Lead Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1250, 150],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Lead Log",
+        "columns": {
+          "mappingMode": "manual",
+          "values": [
+            { "column": "call_id", "value": "={{ $json.call_id }}" },
+            { "column": "caller_name", "value": "={{ $json.caller_name }}" },
+            { "column": "phone", "value": "={{ $json.phone }}" },
+            { "column": "status", "value": "duplicate" },
+            { "column": "notes", "value": "={{ $json.skip_reason }}" },
+            { "column": "processed_at", "value": "={{ $json.processed_at }}" }
+          ]
+        }
+      },
+      "typeVersion": 4,
+      "notes": "Logs duplicate calls for audit trail."
+    },
+    {
+      "id": "qualification-engine",
+      "name": "Qualification Engine",
+      "type": "n8n-nodes-base.function",
+      "position": [1250, 400],
+      "parameters": {
+        "functionCode": "const data = $input.first().json;\nconst practiceAreas = ['personal_injury', 'family_law', 'criminal_defense', 'employment_law'];\nconst serviceAreas = ['california', 'ca'];\n\n// HARD DISQUALIFIERS (override AI)\nif (!practiceAreas.includes(data.case_type)) {\n  return [{ json: { ...data, qualified: false, qualification_reason: `Case type \"${data.case_type}\" outside practice areas`, qualification_source: 'rules_engine' } }];\n}\nif (data.existing_representation === true) {\n  return [{ json: { ...data, qualified: false, qualification_reason: 'Caller already has legal representation', qualification_source: 'rules_engine' } }];\n}\nconst jurisdiction = (data.jurisdiction || '').toLowerCase();\nif (jurisdiction && !serviceAreas.some(a => jurisdiction.includes(a))) {\n  return [{ json: { ...data, qualified: false, qualification_reason: `Outside service jurisdiction: ${data.jurisdiction}`, qualification_source: 'rules_engine' } }];\n}\n\n// HARD QUALIFIERS (override AI if it missed)\nif (data.urgency === 'high') {\n  return [{ json: { ...data, qualified: true, qualification_reason: data.qualification_reason || 'Urgent case in practice area', qualification_source: 'rules_override' } }];\n}\nif (data.case_type === 'personal_injury' && data.injuries === true) {\n  return [{ json: { ...data, qualified: true, qualification_reason: data.qualification_reason || 'PI case with reported injuries', qualification_source: 'rules_override' } }];\n}\nif (data.case_type === 'criminal_defense' && data.court_date) {\n  return [{ json: { ...data, qualified: true, qualification_reason: data.qualification_reason || 'Criminal case with pending court date', qualification_source: 'rules_override' } }];\n}\n\n// DEFAULT: Trust AI\nreturn [{ json: { ...data, qualification_source: 'ai_assessment' } }];"
+      },
+      "typeVersion": 1,
+      "notes": "Two-layer qualification: deterministic rules for clear-cut cases, AI for gray areas. Defaults to qualified."
+    },
+    {
+      "id": "route-qualified",
+      "name": "Qualified?",
+      "type": "n8n-nodes-base.if",
+      "position": [1450, 400],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.qualified }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "write-leads-qualified",
+      "name": "Sheets: Add Qualified Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1700, 300],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Leads",
+        "columns": {
+          "mappingMode": "manual",
+          "values": [
+            { "column": "Name", "value": "={{ $json.caller_name }}" },
+            { "column": "Phone", "value": "={{ $json.phone }}" },
+            { "column": "Email", "value": "={{ $json.email }}" },
+            { "column": "Case Type", "value": "={{ $json.case_type }}" },
+            { "column": "Description", "value": "={{ $json.case_description }}" },
+            { "column": "Urgency", "value": "={{ $json.urgency }}" },
+            { "column": "Status", "value": "Qualified" },
+            { "column": "Qualification Reason", "value": "={{ $json.qualification_reason }}" },
+            { "column": "Pipeline Stage", "value": "={{ $json.urgency === 'high' ? 'Urgent Review' : 'New Qualified Lead' }}" },
+            { "column": "Source", "value": "AI Phone Intake" },
+            { "column": "Created At", "value": "={{ $json.processed_at }}" },
+            { "column": "Call ID", "value": "={{ $json.call_id }}" }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "notes": "Adds qualified lead to the Leads (CRM) sheet."
+    },
+    {
+      "id": "write-leads-not-qualified",
+      "name": "Sheets: Add Not-Qualified Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [1700, 550],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Leads",
+        "columns": {
+          "mappingMode": "manual",
+          "values": [
+            { "column": "Name", "value": "={{ $json.caller_name }}" },
+            { "column": "Phone", "value": "={{ $json.phone }}" },
+            { "column": "Email", "value": "={{ $json.email }}" },
+            { "column": "Case Type", "value": "={{ $json.case_type }}" },
+            { "column": "Description", "value": "={{ $json.case_description }}" },
+            { "column": "Urgency", "value": "={{ $json.urgency }}" },
+            { "column": "Status", "value": "Not Qualified" },
+            { "column": "Qualification Reason", "value": "={{ $json.qualification_reason }}" },
+            { "column": "Pipeline Stage", "value": "Declined" },
+            { "column": "Source", "value": "AI Phone Intake" },
+            { "column": "Created At", "value": "={{ $json.processed_at }}" },
+            { "column": "Call ID", "value": "={{ $json.call_id }}" }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "notes": "Adds not-qualified lead to the Leads sheet (still tracked)."
+    },
+    {
+      "id": "is-urgent",
+      "name": "Urgent?",
+      "type": "n8n-nodes-base.if",
+      "position": [1900, 250],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.urgency }}",
+              "operation": "equals",
+              "value2": "high"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "gmail-urgent",
+      "name": "Gmail: URGENT Lead Alert",
+      "type": "n8n-nodes-base.gmail",
+      "position": [2100, 175],
+      "parameters": {
+        "sendTo": "={{ $env.INTAKE_URGENT_EMAIL }}",
+        "subject": "URGENT NEW LEAD: {{ $json.caller_name }} — {{ $json.case_type.replace(/_/g, ' ') }}",
+        "emailType": "html",
+        "message": "<h2 style='color: #d93025;'>URGENT New Qualified Lead</h2><table style='border-collapse:collapse;'><tr><td><b>Name:</b></td><td>{{ $json.caller_name }}</td></tr><tr><td><b>Phone:</b></td><td>{{ $json.phone }}</td></tr><tr><td><b>Email:</b></td><td>{{ $json.email || 'Not provided' }}</td></tr><tr><td><b>Case Type:</b></td><td>{{ $json.case_type.replace(/_/g, ' ') }}</td></tr><tr><td><b>Urgency:</b></td><td>HIGH</td></tr><tr><td><b>Description:</b></td><td>{{ $json.case_description }}</td></tr><tr><td><b>Qualification:</b></td><td>{{ $json.qualification_reason }}</td></tr></table><br><small>AI Intake | Call ID: {{ $json.call_id }}</small>"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-cred",
+          "name": "Gmail"
+        }
+      },
+      "typeVersion": 2,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "notes": "Urgent qualified leads get an immediate high-priority email to the urgent intake list."
+    },
+    {
+      "id": "gmail-qualified",
+      "name": "Gmail: New Lead Alert",
+      "type": "n8n-nodes-base.gmail",
+      "position": [2100, 325],
+      "parameters": {
+        "sendTo": "={{ $env.INTAKE_TEAM_EMAIL }}",
+        "subject": "New Qualified Lead: {{ $json.caller_name }} — {{ $json.case_type.replace(/_/g, ' ') }}",
+        "emailType": "html",
+        "message": "<h2>New Qualified Lead</h2><table style='border-collapse:collapse;'><tr><td><b>Name:</b></td><td>{{ $json.caller_name }}</td></tr><tr><td><b>Phone:</b></td><td>{{ $json.phone }}</td></tr><tr><td><b>Email:</b></td><td>{{ $json.email || 'Not provided' }}</td></tr><tr><td><b>Case Type:</b></td><td>{{ $json.case_type.replace(/_/g, ' ') }}</td></tr><tr><td><b>Urgency:</b></td><td>{{ $json.urgency }}</td></tr><tr><td><b>Description:</b></td><td>{{ $json.case_description }}</td></tr><tr><td><b>Qualification:</b></td><td>{{ $json.qualification_reason }}</td></tr></table><br><small>AI Intake | Call ID: {{ $json.call_id }}</small>"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-cred",
+          "name": "Gmail"
+        }
+      },
+      "typeVersion": 2,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "notes": "Standard qualified leads get a notification email to the intake team."
+    },
+    {
+      "id": "gmail-decline",
+      "name": "Gmail: Decline Email to Lead",
+      "type": "n8n-nodes-base.gmail",
+      "position": [1900, 550],
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "Thank you for contacting [Firm Name]",
+        "emailType": "html",
+        "message": "<p>Dear {{ $json.caller_name.split(' ')[0] }},</p><p>Thank you for reaching out to [Firm Name]. We appreciate you taking the time to contact us about your legal matter.</p><p>After reviewing the details of your inquiry, we've determined that your matter falls outside our firm's current practice areas. We want to make sure you get the right help.</p><p>We recommend contacting the <b>California State Bar Lawyer Referral Service</b> at <b>1-866-442-2529</b>. They can connect you with an attorney who specializes in your type of case.</p><p>We wish you the very best.</p><p>Warm regards,<br>[Firm Name]</p>",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-cred",
+          "name": "Gmail"
+        }
+      },
+      "typeVersion": 2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "notes": "Polite decline email with State Bar referral. Only sends if the lead provided an email."
+    },
+    {
+      "id": "gmail-fyi",
+      "name": "Gmail: FYI to Intake Team",
+      "type": "n8n-nodes-base.gmail",
+      "position": [2100, 625],
+      "parameters": {
+        "sendTo": "={{ $env.INTAKE_TEAM_EMAIL }}",
+        "subject": "Non-Qualified Lead: {{ $json.caller_name }} — {{ $json.case_type.replace(/_/g, ' ') }}",
+        "emailType": "html",
+        "message": "<p><b>Non-Qualified Lead (FYI)</b></p><p>Name: {{ $json.caller_name }} | Phone: {{ $json.phone }} | Case: {{ $json.case_type.replace(/_/g, ' ') }}</p><p>Reason: {{ $json.qualification_reason }}</p><p>Decline email {{ $json.email ? 'sent' : 'NOT sent (no email on file)' }}.</p><small>Call ID: {{ $json.call_id }}</small>"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-cred",
+          "name": "Gmail"
+        }
+      },
+      "typeVersion": 2,
+      "notes": "Informational notification so intake team knows the lead was handled."
+    },
+    {
+      "id": "calendar-followup",
+      "name": "Calendar: Follow-Up Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "position": [2300, 250],
+      "parameters": {
+        "operation": "create",
+        "calendarId": "primary",
+        "summary": "Follow up: {{ $json.caller_name }} — {{ $json.case_type.replace(/_/g, ' ') }}",
+        "description": "Phone: {{ $json.phone }}\nEmail: {{ $json.email || 'N/A' }}\nCase: {{ $json.case_description }}\nUrgency: {{ $json.urgency }}\nQualification: {{ $json.qualification_reason }}\n\nCall ID: {{ $json.call_id }}",
+        "start": "={{ $json.urgency === 'high' ? new Date(Date.now() + 30*60*1000).toISOString() : new Date(Date.now() + 60*60*1000).toISOString() }}",
+        "end": "={{ $json.urgency === 'high' ? new Date(Date.now() + 45*60*1000).toISOString() : new Date(Date.now() + 75*60*1000).toISOString() }}",
+        "options": {
+          "reminders": [
+            { "method": "popup", "minutes": 5 }
+          ]
+        }
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-cred",
+          "name": "Google Calendar"
+        }
+      },
+      "typeVersion": 3,
+      "notes": "Creates a follow-up calendar event. Urgent = 30 min, standard = 1 hour."
+    },
+    {
+      "id": "log-to-lead-log",
+      "name": "Sheets: Log to Lead Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2300, 450],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Lead Log",
+        "columns": {
+          "mappingMode": "manual",
+          "values": [
+            { "column": "call_id", "value": "={{ $json.call_id }}" },
+            { "column": "caller_name", "value": "={{ $json.caller_name }}" },
+            { "column": "phone", "value": "={{ $json.phone }}" },
+            { "column": "email", "value": "={{ $json.email }}" },
+            { "column": "case_type", "value": "={{ $json.case_type }}" },
+            { "column": "case_description", "value": "={{ $json.case_description }}" },
+            { "column": "urgency", "value": "={{ $json.urgency }}" },
+            { "column": "jurisdiction", "value": "={{ $json.jurisdiction }}" },
+            { "column": "qualified", "value": "={{ $json.qualified }}" },
+            { "column": "qualification_reason", "value": "={{ $json.qualification_reason }}" },
+            { "column": "qualification_source", "value": "={{ $json.qualification_source }}" },
+            { "column": "duration_seconds", "value": "={{ $json.duration_seconds }}" },
+            { "column": "has_transcript", "value": "={{ $json.transcript ? 'Yes' : 'No' }}" },
+            { "column": "status", "value": "complete" },
+            { "column": "processed_at", "value": "={{ $json.processed_at }}" }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "notes": "Full audit trail for every processed lead."
+    },
+    {
+      "id": "update-dedup-tracker",
+      "name": "Sheets: Update Dedup Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [2500, 450],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Dedup Tracker",
+        "columns": {
+          "mappingMode": "manual",
+          "values": [
+            { "column": "call_id", "value": "={{ $json.call_id }}" },
+            { "column": "phone", "value": "={{ $json.phone }}" },
+            { "column": "timestamp", "value": "={{ $json.processed_at }}" }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4,
+      "notes": "Records the call for future duplicate detection."
+    },
+    {
+      "id": "error-handler",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [250, 600],
+      "typeVersion": 1,
+      "notes": "Catches all workflow errors."
+    },
+    {
+      "id": "log-error-sheets",
+      "name": "Sheets: Log Error",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [500, 600],
+      "parameters": {
+        "operation": "append",
+        "sheetId": "{{ $env.GOOGLE_SHEETS_ID }}",
+        "sheetName": "Error Log",
+        "columns": {
+          "mappingMode": "manual",
+          "values": [
+            { "column": "timestamp", "value": "={{ new Date().toISOString() }}" },
+            { "column": "call_id", "value": "={{ $json.error?.input?.call_id || 'unknown' }}" },
+            { "column": "error_message", "value": "={{ $json.error?.message }}" },
+            { "column": "failed_node", "value": "={{ $json.error?.node }}" },
+            { "column": "input_data", "value": "={{ JSON.stringify($json.error?.input || {}).substring(0, 500) }}" },
+            { "column": "status", "value": "pending_review" }
+          ]
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      },
+      "typeVersion": 4,
+      "notes": "Logs failed executions to Error Log sheet for review."
+    },
+    {
+      "id": "alert-admin",
+      "name": "Gmail: Alert Admin",
+      "type": "n8n-nodes-base.gmail",
+      "position": [750, 600],
+      "parameters": {
+        "sendTo": "={{ $env.ADMIN_EMAIL }}",
+        "subject": "[ALERT] Intake Automation Error",
+        "emailType": "html",
+        "message": "<h3 style='color: #d93025;'>Intake Automation Error</h3><p><b>Error:</b> {{ $json.error?.message }}</p><p><b>Node:</b> {{ $json.error?.node }}</p><p><b>Time:</b> {{ new Date().toISOString() }}</p><p>Check the Error Log sheet for details.</p>"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-cred",
+          "name": "Gmail"
+        }
+      },
+      "typeVersion": 2,
+      "notes": "Alerts admin when workflow fails after retries."
+    }
+  ],
+  "connections": {
+    "Webhook: Receive Call Data": {
+      "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
+    },
+    "Validate Payload": {
+      "main": [[{ "node": "Read Dedup Tracker", "type": "main", "index": 0 }]]
+    },
+    "Read Dedup Tracker": {
+      "main": [[{ "node": "Check for Duplicates", "type": "main", "index": 0 }]]
+    },
+    "Check for Duplicates": {
+      "main": [[{ "node": "New Lead?", "type": "main", "index": 0 }]]
+    },
+    "New Lead?": {
+      "main": [
+        [{ "node": "Qualification Engine", "type": "main", "index": 0 }],
+        [{ "node": "Log Duplicate to Lead Log", "type": "main", "index": 0 }]
+      ]
+    },
+    "Qualification Engine": {
+      "main": [[{ "node": "Qualified?", "type": "main", "index": 0 }]]
+    },
+    "Qualified?": {
+      "main": [
+        [
+          { "node": "Sheets: Add Qualified Lead", "type": "main", "index": 0 },
+          { "node": "Urgent?", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Sheets: Add Not-Qualified Lead", "type": "main", "index": 0 },
+          { "node": "Gmail: Decline Email to Lead", "type": "main", "index": 0 },
+          { "node": "Gmail: FYI to Intake Team", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Urgent?": {
+      "main": [
+        [{ "node": "Gmail: URGENT Lead Alert", "type": "main", "index": 0 }],
+        [{ "node": "Gmail: New Lead Alert", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gmail: URGENT Lead Alert": {
+      "main": [[{ "node": "Calendar: Follow-Up Event", "type": "main", "index": 0 }]]
+    },
+    "Gmail: New Lead Alert": {
+      "main": [[{ "node": "Calendar: Follow-Up Event", "type": "main", "index": 0 }]]
+    },
+    "Sheets: Add Qualified Lead": {
+      "main": [[{ "node": "Sheets: Log to Lead Log", "type": "main", "index": 0 }]]
+    },
+    "Sheets: Add Not-Qualified Lead": {
+      "main": [[{ "node": "Sheets: Log to Lead Log", "type": "main", "index": 0 }]]
+    },
+    "Sheets: Log to Lead Log": {
+      "main": [[{ "node": "Sheets: Update Dedup Tracker", "type": "main", "index": 0 }]]
+    },
+    "Error Handler": {
+      "main": [[{ "node": "Sheets: Log Error", "type": "main", "index": 0 }]]
+    },
+    "Sheets: Log Error": {
+      "main": [[{ "node": "Gmail: Alert Admin", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "instanceId": "legal-intake-google-workspace-v1.2.0"
+  }
+}
